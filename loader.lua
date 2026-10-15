@@ -1,16 +1,21 @@
 --[[
     ═══════════════════════════════════════════════════════════
-        TEV HUB v1.0 — Murder Mystery 2
-        github.com/<senin-kullanıcı>/TEV-Hub
+        TEV HUB v1.1 — Murder Mystery 2
+        github.com/hztvs01-netizen/TEV-Hub
         Analytics yok. Key yok. Obfuscate yok.
     ═══════════════════════════════════════════════════════════
 ]]
 
-if getgenv().TEV_LOADED then
-    warn("[TEV] Zaten yüklü. Kaldırmak için: getgenv().TEV_LOADED = nil")
+-- ═══════════════════════════════════════════════════════════
+--  YÜKLEME KONTROLÜ
+-- ═══════════════════════════════════════════════════════════
+if _G.TEV_Hub_Loaded then
+    warn("[TEV] Zaten yüklü. Silmek için: _G.TEV_Hub_Loaded = nil ve ScreenGui'yi sil.")
     return
 end
-getgenv().TEV_LOADED = true
+_G.TEV_Hub_Loaded = true
+
+print("[TEV] loader başladı")
 
 -- ═══════════════════════════════════════════════════════════
 --  SERVİSLER
@@ -41,46 +46,36 @@ local T = {
     TextSub  = Color3.fromRGB(150, 150, 185),
     Success  = Color3.fromRGB(52, 211, 153),
     Danger   = Color3.fromRGB(248, 113, 113),
-    Warn     = Color3.fromRGB(251, 191, 36),
     Murder   = Color3.fromRGB(255, 60, 60),
     Sheriff  = Color3.fromRGB(60, 140, 255),
     Innocent = Color3.fromRGB(80, 220, 120),
-    GunDrop  = Color3.fromRGB(255, 220, 60),
 }
 
 -- ═══════════════════════════════════════════════════════════
 --  CONFIG
 -- ═══════════════════════════════════════════════════════════
 local Config = {
-    Enabled          = true,
     Notifications    = true,
 
-    -- Visual
     ESP              = false,
     Tracers          = true,
     DistanceDisplay  = true,
     NameDisplay      = true,
     XRay             = false,
     Fullbright       = false,
-    RemoveRagdolls   = true,
-    RemoveBlackScreen= true,
-    RemoveBarriers   = true,
+    RemoveBarriers   = false,
 
-    -- Combat
     Aimbot           = false,
     AimbotKey        = Enum.KeyCode.E,
     AimbotFOV        = 200,
     AimbotSmooth     = 0.15,
     AimbotMurder     = false,
     AimbotSheriff    = true,
-    AutoShoot        = false,
 
-    -- Farm
     CoinGrabber      = false,
     CoinRange        = 500,
     AutoPickupGun    = false,
 
-    -- Movement
     WalkSpeed        = 16,
     JumpPower        = 50,
     Gravity          = 196.2,
@@ -90,12 +85,7 @@ local Config = {
     InfiniteJump     = false,
     CtrlClickTP      = false,
 
-    -- Troll
-    FakeKnife        = false,
-
-    -- Misc
     GodMode          = false,
-    UnlockEmotes     = true,
 }
 
 local function notify(title, text, dur)
@@ -156,7 +146,7 @@ local Roles = {
 }
 
 local function getPlayerRole(plr)
-    if not plr or not plr.Parent then return nil end
+    if not plr or not plr.Parent then return "Innocent" end
     local function has(t, n)
         return t and t:FindFirstChild(n) ~= nil
     end
@@ -176,32 +166,42 @@ local function getRoleColor(role)
     return T.Innocent
 end
 
-local function updateRoles()
-    Roles.Murderer = nil
-    Roles.Sheriff = nil
-    Roles.Innocents = {}
-    Roles.All = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            local role = getPlayerRole(plr)
-            table.insert(Roles.All, { player = plr, role = role })
-            if role == "Murderer" then
-                Roles.Murderer = plr
-            elseif role == "Sheriff" then
-                Roles.Sheriff = plr
-            else
-                table.insert(Roles.Innocents, plr)
+task.spawn(function()
+    while task.wait(0.5) do
+        Roles.Murderer = nil
+        Roles.Sheriff = nil
+        Roles.Innocents = {}
+        Roles.All = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP then
+                local role = getPlayerRole(plr)
+                table.insert(Roles.All, { player = plr, role = role })
+                if role == "Murderer" then
+                    Roles.Murderer = plr
+                elseif role == "Sheriff" then
+                    Roles.Sheriff = plr
+                else
+                    table.insert(Roles.Innocents, plr)
+                end
             end
         end
     end
-end
-
-RunService.Heartbeat:Connect(updateRoles)
+end)
 
 -- ═══════════════════════════════════════════════════════════
 --  UI — ANA PENCERE
 -- ═══════════════════════════════════════════════════════════
-local old = CoreGui:FindFirstChild("TEV_Hub")
+
+-- Parent fallback: CoreGui → PlayerGui
+local parent
+if pcall(function() CoreGui.Name = CoreGui.Name end) then
+    parent = CoreGui
+else
+    parent = LP:WaitForChild("PlayerGui")
+end
+print("[TEV] parent: " .. tostring(parent))
+
+local old = parent:FindFirstChild("TEV_Hub")
 if old then old:Destroy() end
 
 local ScreenGui = New("ScreenGui", {
@@ -210,7 +210,7 @@ local ScreenGui = New("ScreenGui", {
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
     DisplayOrder = 999,
-    Parent = CoreGui,
+    Parent = parent,
 })
 
 local Main = New("Frame", {
@@ -222,14 +222,12 @@ local Main = New("Frame", {
     BorderSizePixel = 0,
     ClipsDescendants = true,
     Active = true,
-    Draggable = true,
     ZIndex = 2,
     Parent = ScreenGui,
 })
 Corner(Main, UDim.new(0, 16))
 Stroke(Main, T.Accent1, 1.5, 0.35)
 
--- Gradient üst şerit
 local TopGlow = New("Frame", {
     Size = UDim2.new(1, 0, 0, 110),
     BackgroundColor3 = T.Accent1,
@@ -240,7 +238,6 @@ local TopGlow = New("Frame", {
 })
 Gradient(TopGlow, T.Accent1, T.Accent2, 90)
 
--- Başlık
 New("TextLabel", {
     Text = "TEV HUB",
     Font = Enum.Font.GothamBlack,
@@ -255,7 +252,7 @@ New("TextLabel", {
 })
 
 New("TextLabel", {
-    Text = "v1.0  ·  Murder Mystery 2",
+    Text = "v1.1  ·  Murder Mystery 2",
     Font = Enum.Font.GothamMedium,
     TextSize = 12,
     TextColor3 = T.TextSub,
@@ -267,7 +264,6 @@ New("TextLabel", {
     Parent = Main,
 })
 
--- Kapat butonu
 local CloseBtn = New("TextButton", {
     Text = "×",
     Font = Enum.Font.GothamBold,
@@ -284,14 +280,11 @@ local CloseBtn = New("TextButton", {
 })
 Corner(CloseBtn, UDim.new(1, 0))
 Stroke(CloseBtn, T.Danger, 1, 0.5)
-
-CloseBtn.MouseEnter:Connect(function() Tween(CloseBtn, 0.15, { BackgroundColor3 = T.Danger, BackgroundTransparency = 0.1 }) end)
-CloseBtn.MouseLeave:Connect(function() Tween(CloseBtn, 0.15, { BackgroundColor3 = T.BgPanel, BackgroundTransparency = 0.3 }) end)
 CloseBtn.MouseButton1Click:Connect(function()
     Tween(Main, 0.25, { Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0) }, Enum.EasingStyle.Back)
     task.wait(0.28)
     ScreenGui:Destroy()
-    getgenv().TEV_LOADED = nil
+    _G.TEV_Hub_Loaded = nil
 end)
 
 -- ═══════════════════════════════════════════════════════════
@@ -299,12 +292,12 @@ end)
 -- ═══════════════════════════════════════════════════════════
 local Tabs = {
     { Name = "Visual",   Icon = "◉" },
-    { Name = "Combat",   Icon = "⚔" },
+    { Name = "Combat",   Icon = "X" },
     { Name = "Farm",     Icon = "$" },
-    { Name = "Movement", Icon = "▶" },
-    { Name = "Troll",    Icon = "☠" },
-    { Name = "Emotes",   Icon = "☺" },
-    { Name = "Settings", Icon = "⚙" },
+    { Name = "Movement", Icon = ">" },
+    { Name = "Troll",    Icon = "!" },
+    { Name = "Emotes",   Icon = ":" },
+    { Name = "Settings", Icon = "*" },
 }
 
 local TabBar = New("Frame", {
@@ -362,9 +355,10 @@ New("UIPadding", {
     Parent = ContentScroll,
 })
 
--- Modül sistemi
+-- ═══════════════════════════════════════════════════════════
+--  UI ELEMANLARI
+-- ═══════════════════════════════════════════════════════════
 local Modules = {}
-
 local tabButtons = {}
 local activeTab = nil
 
@@ -391,10 +385,7 @@ local function makeButton(text, parent)
     Corner(btn, UDim.new(0, 8))
     Stroke(btn, T.Accent3, 1, 0.7)
     btn.TextXAlignment = Enum.TextXAlignment.Left
-    New("UIPadding", {
-        PaddingLeft = UDim.new(0, 12),
-        Parent = btn,
-    })
+    New("UIPadding", { PaddingLeft = UDim.new(0, 12), Parent = btn })
     btn.MouseEnter:Connect(function()
         Tween(btn, 0.15, { BackgroundColor3 = T.BgHover, BackgroundTransparency = 0.05 })
     end)
@@ -456,7 +447,6 @@ local function makeToggle(name, default, callback, parent)
         })
         if callback then pcall(callback, state) end
     end)
-
     return row
 end
 
@@ -484,7 +474,6 @@ local function makeSlider(name, min, max, default, callback, parent)
         ZIndex = 7,
         Parent = row,
     })
-
     New("TextLabel", {
         Text = name,
         Font = Enum.Font.GothamMedium,
@@ -497,7 +486,6 @@ local function makeSlider(name, min, max, default, callback, parent)
         ZIndex = 7,
         Parent = row,
     })
-
     local barBg = New("Frame", {
         BackgroundColor3 = T.BgPanel,
         BorderSizePixel = 0,
@@ -507,11 +495,10 @@ local function makeSlider(name, min, max, default, callback, parent)
         Parent = row,
     })
     Corner(barBg, UDim.new(1, 0))
-
     local fill = New("Frame", {
         BackgroundColor3 = T.Accent1,
         BorderSizePixel = 0,
-        Size = UDim2.new((default - min) / (max - min), 0, 1, 0),
+        Size = UDim2.new(math.clamp((default - min) / (max - min), 0, 1), 0, 1, 0),
         ZIndex = 8,
         Parent = barBg,
     })
@@ -525,9 +512,7 @@ local function makeSlider(name, min, max, default, callback, parent)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         valueLabel.Text = tostring(val)
         if callback then pcall(callback, val) end
-        return val
     end
-
     barBg.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
@@ -544,7 +529,6 @@ local function makeSlider(name, min, max, default, callback, parent)
             dragging = false
         end
     end)
-
     return row
 end
 
@@ -578,25 +562,145 @@ local function makeSection(text, parent)
 end
 
 -- ═══════════════════════════════════════════════════════════
+--  ESP (Drawing API)
+-- ═══════════════════════════════════════════════════════════
+local ESP = {
+    objects = {},       -- [player] = { box lines, tracer, name text, dist text }
+    camera = workspace.CurrentCamera,
+}
+
+local function createESPObejcts()
+    return {
+        top    = Drawing.new("Line"),
+        bottom = Drawing.new("Line"),
+        left   = Drawing.new("Line"),
+        right  = Drawing.new("Line"),
+        tracer = Drawing.new("Line"),
+        name   = Drawing.new("Text"),
+        dist   = Drawing.new("Text"),
+    }
+end
+
+local function destroyESP(o)
+    for _, v in pairs(o) do
+        if v and v.Remove then v:Remove() end
+    end
+end
+
+local function worldToScreen(pos)
+    local sp, onScreen = ESP.camera:WorldToViewportPoint(pos)
+    return Vector2.new(sp.X, sp.Y), onScreen, sp.Z
+end
+
+local function updateESP()
+    local camera = workspace.CurrentCamera
+    ESP.camera = camera
+    local viewport = camera.ViewportSize
+    local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+
+    -- oyuncular
+    for _, entry in ipairs(Roles.All) do
+        local plr = entry.player
+        local role = entry.role
+        if plr and plr.Character and plr.Character:FindFirstChild("Head") then
+            if not ESP.objects[plr] then
+                ESP.objects[plr] = createESPObejcts()
+            end
+            local o = ESP.objects[plr]
+            local head = plr.Character.Head
+            local headPos = head.Position
+            local headScreen, onScreen = worldToScreen(headPos + Vector3.new(0, 0.5, 0))
+            local bottomScreen = worldToScreen(headPos - Vector3.new(0, 3, 0))
+            local color = getRoleColor(role)
+            local myPos = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position or Vector3.new()
+            local dist = (headPos - myPos).Magnitude
+
+            if Config.ESP and onScreen then
+                local h = math.abs(headScreen.Y - bottomScreen.Y)
+                local w = h * 0.6
+                local top    = Vector2.new(headScreen.X - w/2, headScreen.Y)
+                local bottom = Vector2.new(headScreen.X - w/2, bottomScreen.Y)
+                local right  = Vector2.new(headScreen.X + w/2, headScreen.Y)
+                local left   = Vector2.new(headScreen.X + w/2, bottomScreen.Y)
+                local bottomRight = Vector2.new(headScreen.X + w/2, bottomScreen.Y)
+
+                o.top.From, o.top.To = top, Vector2.new(headScreen.X + w/2, headScreen.Y)
+                o.bottom.From, o.bottom.To = bottom, bottomRight
+                o.left.From, o.left.To = top, bottom
+                o.right.From, o.right.To = Vector2.new(headScreen.X + w/2, headScreen.Y), bottomRight
+
+                for _, line in ipairs({o.top, o.bottom, o.left, o.right}) do
+                    line.Color = color
+                    line.Thickness = 1.5
+                    line.Visible = true
+                    line.Transparency = 1
+                end
+
+                if Config.Tracers then
+                    o.tracer.From = Vector2.new(viewport.X / 2, viewport.Y)
+                    o.tracer.To = Vector2.new(headScreen.X, headScreen.Y)
+                    o.tracer.Color = color
+                    o.tracer.Thickness = 1.5
+                    o.tracer.Transparency = 0.7
+                    o.tracer.Visible = true
+                else
+                    o.tracer.Visible = false
+                end
+
+                if Config.NameDisplay then
+                    o.name.Text = plr.Name .. " [" .. role .. "]"
+                    o.name.Position = Vector2.new(headScreen.X, headScreen.Y - 18)
+                    o.name.Color = color
+                    o.name.Size = 14
+                    o.name.Center = true
+                    o.name.Outline = true
+                    o.name.OutlineColor = Color3.new(0, 0, 0)
+                    o.name.Visible = true
+                else
+                    o.name.Visible = false
+                end
+
+                if Config.DistanceDisplay then
+                    o.dist.Text = tostring(math.floor(dist)) .. " studs"
+                    o.dist.Position = Vector2.new(headScreen.X, bottomScreen.Y + 4)
+                    o.dist.Color = color
+                    o.dist.Size = 12
+                    o.dist.Center = true
+                    o.dist.Outline = true
+                    o.dist.OutlineColor = Color3.new(0, 0, 0)
+                    o.dist.Visible = true
+                else
+                    o.dist.Visible = false
+                end
+            else
+                for _, v in pairs(o) do v.Visible = false end
+            end
+        elseif ESP.objects[plr] then
+            destroyESP(ESP.objects[plr])
+            ESP.objects[plr] = nil
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(updateESP)
+
+-- ═══════════════════════════════════════════════════════════
 --  MODÜLLER
 -- ═══════════════════════════════════════════════════════════
 
 -- ── VISUAL ─────────────────────────────────────────────
 function Modules.Visual(parent)
     makeSection("ESP", parent)
-
     makeToggle("ESP (rol renkli)", Config.ESP, function(v) Config.ESP = v end, parent)
     makeToggle("Tracers", Config.Tracers, function(v) Config.Tracers = v end, parent)
     makeToggle("Mesafe Göster", Config.DistanceDisplay, function(v) Config.DistanceDisplay = v end, parent)
     makeToggle("İsim Göster", Config.NameDisplay, function(v) Config.NameDisplay = v end, parent)
 
     makeSection("Dünya", parent)
-
     makeToggle("X-Ray", Config.XRay, function(v)
         Config.XRay = v
-        if v then TEV_XRay(true) else TEV_XRay(false) end
+        if TEV_XRay then TEV_XRay(v) end
     end, parent)
-
     makeToggle("Fullbright", Config.Fullbright, function(v)
         Config.Fullbright = v
         if v then
@@ -609,12 +713,9 @@ function Modules.Visual(parent)
             Lighting.OutdoorAmbient = Color3.fromRGB(128,128,128)
         end
     end, parent)
-
-    makeToggle("Ragdoll Kaldır", Config.RemoveRagdolls, function(v) Config.RemoveRagdolls = v end, parent)
-    makeToggle("Siyah Ekran Kaldır", Config.RemoveBlackScreen, function(v) Config.RemoveBlackScreen = v end, parent)
     makeToggle("Bariyerleri Kaldır", Config.RemoveBarriers, function(v)
         Config.RemoveBarriers = v
-        if v then TEV_RemoveBarriers() end
+        if v and TEV_RemoveBarriers then TEV_RemoveBarriers() end
     end, parent)
 
     makeSection("Bilgi", parent)
@@ -624,24 +725,19 @@ end
 -- ── COMBAT ─────────────────────────────────────────────
 function Modules.Combat(parent)
     makeSection("Aimbot", parent)
-
     makeToggle("Aimbot", Config.Aimbot, function(v) Config.Aimbot = v end, parent)
     makeToggle("Murderer'a Aim", Config.AimbotMurder, function(v) Config.AimbotMurder = v end, parent)
     makeToggle("Sheriff'e Aim", Config.AimbotSheriff, function(v) Config.AimbotSheriff = v end, parent)
-
     makeSlider("FOV", 50, 500, Config.AimbotFOV, function(v) Config.AimbotFOV = v end, parent)
-    makeSlider("Smooth", 0, 100, Config.AimbotSmooth * 100, function(v) Config.AimbotSmooth = v / 100 end, parent)
-
+    makeSlider("Smooth (%)", 0, 100, Config.AimbotSmooth * 100, function(v) Config.AimbotSmooth = v / 100 end, parent)
     makeLabel("Aimbot tuşu: E (basılı tut)", parent)
 end
 
 -- ── FARM ───────────────────────────────────────────────
 function Modules.Farm(parent)
     makeSection("Coin", parent)
-
     makeToggle("Coin Grabber", Config.CoinGrabber, function(v) Config.CoinGrabber = v end, parent)
     makeSlider("Coin Range", 50, 2000, Config.CoinRange, function(v) Config.CoinRange = v end, parent)
-
     makeSection("Silah", parent)
     makeToggle("Auto Pickup Gun", Config.AutoPickupGun, function(v) Config.AutoPickupGun = v end, parent)
     makeLabel("Silah düşünce otomatik yanına gelir.", parent)
@@ -650,21 +746,18 @@ end
 -- ── MOVEMENT ───────────────────────────────────────────
 function Modules.Movement(parent)
     makeSection("Hız", parent)
-
     makeSlider("WalkSpeed", 0, 500, Config.WalkSpeed, function(v)
         Config.WalkSpeed = v
         if LP.Character and LP.Character:FindFirstChild("Humanoid") then
             LP.Character.Humanoid.WalkSpeed = v
         end
     end, parent)
-
     makeSlider("JumpPower", 0, 500, Config.JumpPower, function(v)
         Config.JumpPower = v
         if LP.Character and LP.Character:FindFirstChild("Humanoid") then
             LP.Character.Humanoid.JumpPower = v
         end
     end, parent)
-
     makeSlider("Gravity", 0, 500, Config.Gravity, function(v)
         Config.Gravity = v
         workspace.Gravity = v
@@ -684,24 +777,21 @@ end
 -- ── TROLL ──────────────────────────────────────────────
 function Modules.Troll(parent)
     makeSection("Troll", parent)
-    makeButton("Fake Knife", ContentScroll).MouseButton1Click:Connect(function()
-        notify("TEV", "Fake knife aktif (sadece sen görürsün)")
-    end)
-    makeButton("Fling Players (Yakın)", ContentScroll).MouseButton1Click:Connect(function()
+    makeButton("Fling Players (Yakın)", parent).MouseButton1Click:Connect(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                 local dist = (plr.Character.HumanoidRootPart.Position - LP.Character.HumanoidRootPart.Position).Magnitude
                 if dist < 20 then
                     for _, part in ipairs(plr.Character:GetDescendants()) do
                         if part:IsA("BasePart") then
-                            part.Velocity = Vector3.new(math.huge, math.huge, math.huge)
+                            part.Velocity = Vector3.new(500, 500, 500)
                         end
                     end
                 end
             end
         end
     end)
-    makeButton("Tüm Oyuncuları Uçur", ContentScroll).MouseButton1Click:Connect(function()
+    makeButton("Tüm Oyuncuları Uçur", parent).MouseButton1Click:Connect(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
                 plr.Character.HumanoidRootPart.Velocity = Vector3.new(0, 500, 0)
@@ -721,7 +811,7 @@ function Modules.Emotes(parent)
     makeSection("Emotes", parent)
     local PlayEmote = ReplicatedStorage:FindFirstChild("PlayEmote")
     if not PlayEmote then
-        makeLabel("PlayEmote remote bulunamadı. Oyun güncellenmiş olabilir.", parent)
+        makeLabel("PlayEmote remote bulunamadı.", parent)
         return
     end
     for _, e in ipairs(EMOTES) do
@@ -736,10 +826,8 @@ end
 function Modules.Settings(parent)
     makeSection("UI", parent)
     makeToggle("Bildirimler", Config.Notifications, function(v) Config.Notifications = v end, parent)
-
     makeSection("Keybind", parent)
-    makeLabel("UI Toggle: RightControl (Ctrl)\nFly: F\nNoclip: R\nAimbot: E\nCtrl+Click TP: Ctrl + Sol tık", parent)
-
+    makeLabel("UI Toggle: RightControl\nFly: F\nNoclip: R\nAimbot: E (basılı tut)\nCtrl+Click TP: Ctrl + Sol tık", parent)
     makeSection("Config", parent)
     makeButton("Config Kaydet", parent).MouseButton1Click:Connect(function()
         pcall(function()
@@ -755,9 +843,8 @@ function Modules.Settings(parent)
             notify("TEV", "Config yüklendi (UI yenile)")
         end)
     end)
-
     makeSection("Hakkında", parent)
-    makeLabel("TEV HUB v1.0\nAnalytics yok. Key yok. Obfuscate yok.\nAçık kaynak.", parent)
+    makeLabel("TEV HUB v1.1\nAnalytics yok. Key yok. Obfuscate yok.", parent)
 end
 
 -- ═══════════════════════════════════════════════════════════
@@ -766,7 +853,6 @@ end
 local function selectTab(name)
     if activeTab == name then return end
     activeTab = name
-
     for n, btn in pairs(tabButtons) do
         local on = (n == name)
         Tween(btn, 0.18, {
@@ -777,7 +863,6 @@ local function selectTab(name)
             Tween(btn.UIStroke, 0.18, { Transparency = on and 0.2 or 0.7 })
         end
     end
-
     clearContent()
     if Modules[name] then
         task.spawn(Modules[name], ContentScroll)
@@ -803,7 +888,6 @@ for i, tab in ipairs(Tabs) do
     Corner(btn, UDim.new(0, 8))
     Stroke(btn, T.Accent3, 1, 0.7)
     btn.TextXAlignment = Enum.TextXAlignment.Left
-
     btn.MouseEnter:Connect(function()
         if activeTab ~= tab.Name then
             Tween(btn, 0.15, { BackgroundColor3 = T.BgHover, BackgroundTransparency = 0.3 })
@@ -815,7 +899,6 @@ for i, tab in ipairs(Tabs) do
         end
     end)
     btn.MouseButton1Click:Connect(function() selectTab(tab.Name) end)
-
     tabButtons[tab.Name] = btn
 end
 
@@ -824,11 +907,6 @@ end
 -- ═══════════════════════════════════════════════════════════
 do
     local dragging, dragStart, startPos
-    local function beginDrag(input)
-        dragging = true
-        dragStart = input.Position
-        startPos = Main.Position
-    end
     local titleBar = New("Frame", {
         Size = UDim2.new(1, 0, 0, 70),
         BackgroundTransparency = 1,
@@ -837,7 +915,9 @@ do
     })
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            beginDrag(input)
+            dragging = true
+            dragStart = input.Position
+            startPos = Main.Position
         end
     end)
     UserInputService.InputChanged:Connect(function(input)
@@ -857,14 +937,13 @@ do
 end
 
 -- ═══════════════════════════════════════════════════════════
---  FONKSİYONLAR
+--  YARDIMCI FONKSİYONLAR
 -- ═══════════════════════════════════════════════════════════
 
--- X-Ray
 function TEV_XRay(state)
     local function scan(root)
         for _, v in ipairs(root:GetChildren()) do
-            if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+            if v:IsA("BasePart") and (not v.Parent or not v.Parent:FindFirstChild("Humanoid")) then
                 v.LocalTransparencyModifier = state and 0.75 or 0
             end
             scan(v)
@@ -873,16 +952,17 @@ function TEV_XRay(state)
     pcall(scan, workspace)
 end
 
--- Bariyerleri kaldır
 function TEV_RemoveBarriers()
     for _, v in ipairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and (v.Name:lower():find("barrier") or v.Name:lower():find("invisible") or v.Transparency == 1) and not v.Parent:FindFirstChild("Humanoid") then
-            v.CanCollide = false
+        if v:IsA("BasePart") and not v.Parent:FindFirstChild("Humanoid") then
+            local nm = v.Name:lower()
+            if nm:find("barrier") or nm:find("invisible") or v.Transparency == 1 then
+                v.CanCollide = false
+            end
         end
     end
 end
 
--- Fly
 local flyActive = false
 local flyBV, flyBG
 
@@ -907,12 +987,12 @@ function TEV_Fly(state)
             while flyActive and char.Parent do
                 local cam = workspace.CurrentCamera
                 local move = Vector3.new(0, 0, 0)
-                if UserInputService:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0, 1, 0) end
-                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0, 1, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0, 1, 0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then move = move - Vector3.new(0, 1, 0) end
 
                 if move.Magnitude > 0 then
                     flyBV.Velocity = move.Unit * Config.FlySpeed
@@ -941,7 +1021,6 @@ end
 --  ANA DÖNGÜLER
 -- ═══════════════════════════════════════════════════════════
 
--- Noclip
 RunService.Stepped:Connect(function()
     if Config.Noclip and LP.Character then
         for _, p in ipairs(LP.Character:GetDescendants()) do
@@ -952,14 +1031,12 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- Sonsuz zıplama
 UserInputService.JumpRequest:Connect(function()
     if Config.InfiniteJump and LP.Character and LP.Character:FindFirstChild("Humanoid") then
         LP.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
 end)
 
--- Coin Grabber
 task.spawn(function()
     while task.wait(0.1) do
         if Config.CoinGrabber and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
@@ -976,7 +1053,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Pickup Gun
 task.spawn(function()
     while task.wait(0.2) do
         if Config.AutoPickupGun and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
@@ -988,7 +1064,6 @@ task.spawn(function()
     end
 end)
 
--- Ctrl+Click TP
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if Config.CtrlClickTP
@@ -996,55 +1071,51 @@ UserInputService.InputBegan:Connect(function(input, gp)
        and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
         local mouse = LP:GetMouse()
         local target = mouse.Target
-        if target then
-            local TeleportToPart = ReplicatedStorage:FindFirstChild("Remotes")
+        if target and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
+            local TT = ReplicatedStorage:FindFirstChild("Remotes")
                 and ReplicatedStorage.Remotes:FindFirstChild("Gameplay")
                 and ReplicatedStorage.Remotes.Gameplay:FindFirstChild("TeleportToPart")
-            if TeleportToPart then
-                pcall(function() TeleportToPart:FireServer(target) end)
+            if TT then
+                pcall(function() TT:FireServer(target) end)
             else
-                if LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-                    LP.Character.HumanoidRootPart.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
-                end
+                LP.Character.HumanoidRootPart.CFrame = CFrame.new(target.Position + Vector3.new(0, 3, 0))
             end
         end
     end
 end)
 
 -- Aimbot
-local aimConnection
-local function startAimbot()
-    if aimConnection then aimConnection:Disconnect() end
-    aimConnection = RunService.RenderStepped:Connect(function()
-        if not Config.Aimbot then return end
-        if not UserInputService:IsKeyDown(Config.AimbotKey) then return end
+RunService.RenderStepped:Connect(function()
+    if not Config.Aimbot then return end
+    if not UserInputService:IsKeyDown(Config.AimbotKey) then return end
 
-        local cam = workspace.CurrentCamera
-        local best, bestDist = nil, Config.AimbotFOV
-        for _, entry in ipairs(Roles.All) do
-            local plr, role = entry.player, entry.role
-            if role == "Murderer" and not Config.AimbotMurder then goto continue end
-            if role == "Sheriff" and not Config.AimbotSheriff then goto continue end
+    local cam = workspace.CurrentCamera
+    local viewport = cam.ViewportSize
+    local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+    local best, bestDist = nil, Config.AimbotFOV
+
+    for _, entry in ipairs(Roles.All) do
+        local plr = entry.player
+        local role = entry.role
+        if (role == "Murderer" and Config.AimbotMurder) or (role == "Sheriff" and Config.AimbotSheriff) or (role == "Innocent") then
             if plr.Character and plr.Character:FindFirstChild("Head") then
                 local head = plr.Character.Head
-                local screenPos, onScreen = cam:WorldToViewportPoint(head.Position)
+                local sp, onScreen = cam:WorldToViewportPoint(head.Position)
                 if onScreen then
-                    local center = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    local v2 = Vector2.new(sp.X, sp.Y)
+                    local dist = (v2 - center).Magnitude
                     if dist < bestDist then
                         best, bestDist = head, dist
                     end
                 end
             end
-            ::continue::
         end
-        if best then
-            local targetCF = CFrame.new(cam.CFrame.Position, best.Position)
-            cam.CFrame = cam.CFrame:Lerp(targetCF, 1 - Config.AimbotSmooth)
-        end
-    end)
-end
-startAimbot()
+    end
+    if best then
+        local targetCF = CFrame.new(cam.CFrame.Position, best.Position)
+        cam.CFrame = cam.CFrame:Lerp(targetCF, 1 - Config.AimbotSmooth)
+    end
+end)
 
 -- Godmode
 task.spawn(function()
@@ -1063,22 +1134,16 @@ task.spawn(function()
     end
 end)
 
--- UI Toggle (RightControl)
+-- Keybind
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.RightControl then
         Main.Visible = not Main.Visible
-    end
-end)
-
--- Fly keybind (F)
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.F then
+    elseif input.KeyCode == Enum.KeyCode.F then
         Config.Fly = not Config.Fly
         TEV_Fly(Config.Fly)
-    end
-    if input.KeyCode == Enum.KeyCode.R then
+        notify("TEV", "Fly: " .. (Config.Fly and "AÇIK" or "KAPALI"), 1.5)
+    elseif input.KeyCode == Enum.KeyCode.R then
         Config.Noclip = not Config.Noclip
         notify("TEV", "Noclip: " .. (Config.Noclip and "AÇIK" or "KAPALI"), 1.5)
     end
@@ -1095,5 +1160,5 @@ Tween(Main, 0.45, {
 }, Enum.EasingStyle.Back)
 
 selectTab("Visual")
-notify("TEV HUB", "v1.0 yüklendi", 3)
-print("[TEV] v1.0 aktif. Remotes: " .. tostring(#ReplicatedStorage:GetDescendants()))
+notify("TEV HUB", "v1.1 yüklendi", 3)
+print("[TEV] v1.1 aktif. Parent: " .. tostring(parent))
